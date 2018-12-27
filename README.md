@@ -1,1 +1,1 @@
-# gogan
+# RankGAN
