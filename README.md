@@ -40,3 +40,5 @@ Image Completion Results.
 ### References
 
 1. Rahul Dey, Felix Juefei-Xu, Vishnu Naresh Boddeti and Marios Savvides. [**RankGAN: A Maximum Margin Ranking GAN for Generating Faces.**](https://arxiv.org/abs/1812.08196) Asian Conference on Computer Vision (ACCV 2018).
+
+2. Felix Juefei-Xu, Vishnu Naresh Boddeti and Marios Savvides. [**Gang of gans: Generative adversarial networks with maximum margin ranking.**](https://arxiv.org/abs/1704.04865) arXiv preprint arXiv:1704.04865 (2017).
