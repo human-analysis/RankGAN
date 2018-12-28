@@ -23,15 +23,20 @@ RankGAN Training Flowchart and Architecture.
 
 ***
 
+### How To Run (on CELEB-A dataset)
+python main.py --dataroot path/to/dataset --cuda
+
+***
+
 ### Results
+Visual and quantitative results on face generation with RankGAN, WGAN and LSGAN.
 ![alt text](images/generation_results.png "Image Generation Results")
 
-Visual and quantitative results on face generation with RankGAN, WGAN and LSGAN.
-
+Image Completion Results.
 ![alt text](images/image_completion.png "Image Completion Results")
 
-Image Completion Results.
+***
 
 ### References
 
-1. Rahul Dey, Felix Juefei-Xu, Vishnu Naresh Boddeti and Marios Savvides. [**RankGAN: A Maximum Margin Ranking GAN for Generating Faces.**](https://arxiv.org/abs/1812.08196) Asian Conference on Computer Vision (ACCV 2018.
+1. Rahul Dey, Felix Juefei-Xu, Vishnu Naresh Boddeti and Marios Savvides. [**RankGAN: A Maximum Margin Ranking GAN for Generating Faces.**](https://arxiv.org/abs/1812.08196) Asian Conference on Computer Vision (ACCV 2018).
