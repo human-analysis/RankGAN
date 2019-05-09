@@ -21,3 +21,13 @@ class Classification():
             correct_k = correct[:k].view(-1).float().sum(0)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
+
+class Logits_Classification:
+    def __init__(self, threshold=0.5):
+        self.threshold = threshold
+
+    def __call__(self, output, target):
+        pred = (output > self.threshold).type('torch.LongTensor')
+        correct = (pred == target.type('torch.LongTensor'))
+        num_correct = correct.sum()
+        return num_correct.item() / (correct.shape[0] * correct.shape[1])

@@ -10,7 +10,43 @@ from PIL import Image, ImageDraw
 from skimage.measure import compare_ssim as ssim
 from inspect import getframeinfo, stack
 import json
+import sys
+import psutil
+import signal
+import plotly
 
+
+def setup_graceful_exit():
+    # handle Ctrl-C signal
+    signal.signal(signal.SIGINT, ctrl_c_handler)
+
+
+def cleanup():
+    # signal.signal(signal.SIGINT, signal.SIG_DFL)
+    current_process = psutil.Process()
+    children = current_process.children(recursive=True)
+    for child in children:
+        try:
+            os.kill(int(child.pid), signal.SIGKILL)
+        except OSError as ex:
+             raise Exception("wasn't able to kill the child process (pid:{}).".format(child.pid))
+    #     # os.waitpid(child.pid, os.P_ALL)
+    print('\x1b[?25h', end='', flush=True)  # show cursor
+    sys.exit(0)
+
+
+def ctrl_c_handler(*kargs):
+    # try to gracefully terminate the program
+    # signal.signal(signal.SIGINT, signal.SIG_DFL)
+    cleanup()
+
+
+def isnan(x):
+    return x != x
+
+import PIL
+def is_pil_image(x):
+    return type(x) is PIL.Image.Image
 
 def _debuginfo(self, *message):
     """Prints the current filename and line number in addition to debugging
@@ -90,6 +126,10 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
+def str2list(v):
+    """A Parser for boolean values with argparse"""
+    return json.loads(v)
+
 
 def gaussian(size, center, sigma=1):
     if np.isnan(center[0]) or np.isnan(center[1]):
@@ -111,4 +151,4 @@ def plotlify(fig, env='main', win='mywin'):
     fig['win'] = win
     fig['eid'] = env
 
-    return fig
+    return json.loads(json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder))

@@ -2,9 +2,11 @@
 
 import math
 from torch import nn
+import torch
 import models
 import losses
 import numpy as np
+import utils
 
 def weights_init(m):
     if isinstance(m, nn.Conv2d):
@@ -25,6 +27,7 @@ class Model:
 
     def __init__(self, args):
         self.cuda = args.cuda
+        self.device = torch.device("cuda" if (self.cuda and torch.cuda.is_available()) else "cpu")
         self.args = args
         self.net_type = args.net_type
         if self.net_type == 'dcgan_nvidia':
@@ -33,6 +36,8 @@ class Model:
             self.models = (models.netD_Generic_Cap(args), models.netG_Generic(args), models.netE_Generic(args))
         elif self.net_type == 'dcgan':
             self.models = (models.DCGAN_D(args), models.DCGAN_G(args), models.netE_Generic(args))
+        elif self.net_type == 'dcgan_rank':
+            self.models = (models.DCGAN_DRank(args), models.DCGAN_GRank(args), models.netE_Generic(args))
         elif self.net_type == 'gmm':
             self.models = (models.GMM_D(args), models.GMM_G(args), models.GMM_E(args))
         elif self.net_type == 'openface':
@@ -42,10 +47,9 @@ class Model:
         else:
             raise("Unknown network architecture")
 
-    def setup(self, checkpoints):
-        # model = models.resnet18(self.nchannels, self.nfilters, self.nclasses)
-        criterion = losses.GoGANLoss(args=self.args)
+        self.criterion = losses.GoGANLoss(args=self.args)
 
+    def setup(self, checkpoints):
         if checkpoints.latest('resume') == None:
             for model in self.models:
                 if 'NormConvBlock' not in model.__repr__():
@@ -58,12 +62,7 @@ class Model:
         #     tmp = checkpoints.load(checkpoints['resume'])
         #     model.load_state_dict(tmp)
 
-        if self.cuda:
-            for model in self.models:
-                try:
-                    model = model.cuda()
-                except Exception as e:
-                    print(e)
-            criterion = criterion.cuda()
+        for model in self.models:
+            model = model.to(self.device)
 
-        return self.models, criterion
+        return self.models, self.criterion

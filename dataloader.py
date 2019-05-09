@@ -7,7 +7,7 @@ import datasets
 import torchvision
 import torch.utils.data
 import torchvision.transforms as transforms
-
+import os
 import utils as utils
 
 class Dataloader:
@@ -17,6 +17,7 @@ class Dataloader:
 
         self.loader_input = args.loader_input
         self.loader_label = args.loader_label
+        self.prefetch = args.prefetch
 
         self.split_test = args.split_test
         self.split_train = args.split_train
@@ -30,7 +31,7 @@ class Dataloader:
         self.label_filename_train = args.label_filename_train
 
         if self.dataset_train_name == 'LSUN':
-            self.dataset_train = getattr(datasets, self.dataset_train_name)(db_path=args.dataroot, classes=['bedroom_train'],
+            self.dataset_train = getattr(datasets, self.dataset_train_name)(root=args.dataroot, classes=['bedroom_train'],
                 transform=transforms.Compose([
                     transforms.Scale(self.resolution),
                     transforms.CenterCrop(self.resolution),
@@ -59,7 +60,7 @@ class Dataloader:
                 )
 
         elif self.dataset_train_name == 'CELEBA':
-            self.dataset_train = datasets.ImageFolder(root=self.args.dataroot + "/train",
+            self.dataset_train = datasets.ImageFolder(root=self.args.dataroot + "/train", # change it back to train before training
                 transform=transforms.Compose([
                     transforms.Scale(self.resolution),
                     transforms.CenterCrop(self.resolution),
@@ -126,13 +127,26 @@ class Dataloader:
         elif self.dataset_train_name == 'ImageNet':
             normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                 std=[0.229, 0.224, 0.225])
-            self.dataset_train = datasets.ImageFolder(root=self.args.dataroot+self.args.input_filename_train,
+            # self.dataset_train = datasets.ImageFolder(root=os.path.join(self.args.dataroot, "train"),
+            #     transform=transforms.Compose([
+            #         transforms.Scale(self.resolution),
+            #         transforms.CenterCrop(self.resolution),
+            #         transforms.RandomHorizontalFlip(),
+            #         transforms.ToTensor(),
+            #         # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            #         normalize,
+            #        ])
+            #     )
+            self.dataset_train = getattr(datasets, self.dataset_train_name)(root=self.args.dataroot,
                 transform=transforms.Compose([
-                    transforms.RandomSizedCrop(224),
+                    transforms.Scale(self.resolution),
+                    transforms.CenterCrop(self.resolution),
                     transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
-                    normalize,
-                   ])
+                    # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    normalize
+                   ]),
+                prefetch = self.args.prefetch
                 )
 
         elif self.dataset_train_name == 'FRGC':
@@ -195,7 +209,7 @@ class Dataloader:
             raise(Exception("Unknown Dataset"))
 
         if self.dataset_test_name == 'LSUN':
-            self.dataset_test = getattr(datasets, self.dataset_test_name)(db_path=args.dataroot, classes=['bedroom_val'],
+            self.dataset_test = getattr(datasets, self.dataset_test_name)(root=args.dataroot, classes=['bedroom_val'],
                 transform=transforms.Compose([
                     transforms.Scale(self.resolution),
                     transforms.CenterCrop(self.resolution),
@@ -265,12 +279,14 @@ class Dataloader:
         elif self.dataset_test_name == 'ImageNet':
             normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                 std=[0.229, 0.224, 0.225])
-            self.dataset_test = datasets.ImageFolder(root=self.args.dataroot+self.args.input_filename_test,
+            self.dataset_test = getattr(datasets, self.dataset_test_name)(root=self.args.dataroot,
                 transform=transforms.Compose([
-                    transforms.Scale(256),
-                    transforms.CenterCrop(224),
+                    transforms.Scale(self.resolution),
+                    transforms.CenterCrop(self.resolution),
+                    transforms.RandomHorizontalFlip(),
                     transforms.ToTensor(),
-                    normalize,
+                    # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    normalize
                    ])
                 )
 

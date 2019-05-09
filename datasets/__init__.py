@@ -6,3 +6,4 @@ from .folderlist import FolderList
 from .gmm import *
 from .celeba import CELEBA
 from .reconstruction import RECONSTRUCTION
+from .imagenet import *

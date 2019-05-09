@@ -2,4 +2,4 @@
 
 from .regression import Regression
 from .classification import Classification
-from .gogan_loss import GoGANLoss
+from .gogan_loss import GoGANLoss, RankOrderLoss

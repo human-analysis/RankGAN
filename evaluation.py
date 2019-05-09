@@ -30,6 +30,8 @@ class Evaluate():
             p.requires_grad = False
         for p in self.netG.parameters():
             p.requires_grad = False
+        self.cuda = args.cuda
+        self.device = torch.device("cuda" if (self.cuda and torch.cuda.is_available()) else "cpu")
 
         self.args = args
         self.nchannels = args.nchannels
@@ -46,13 +48,9 @@ class Evaluate():
         self.use_encoder = args.use_encoder
         self.start_index = args.start_index
 
-        self.input = Variable(torch.FloatTensor(self.batch_size,self.nchannels,self.resolution_high,self.resolution_wide), requires_grad=False).cuda()
-        self.input_occluded = Variable(torch.FloatTensor(self.batch_size,self.nchannels,self.resolution_high,self.resolution_wide), requires_grad=False).cuda()
-        self.fake_out = Variable(torch.FloatTensor(self.batch_size,self.nchannels,self.resolution_high,self.resolution_wide), requires_grad=True).cuda()
-        # self.recon_out = Variable(torch.FloatTensor(self.batch_size,self.nchannels,self.resolution_high,self.resolution_wide)).cuda()
-        self.noise = torch.FloatTensor(self.batch_size, self.nz, 1, 1).normal_(0, 1).cuda()
-        self.epsilon = Variable(torch.randn(self.batch_size, self.nz), requires_grad=False).cuda()
-        self.noise = Variable(self.noise, requires_grad=True)
+        self.noise = torch.FloatTensor(self.batch_size, self.nz, 1, 1).normal_(0, 1).to(self.device)
+        self.noise.requires_grad = True
+        self.epsilon = torch.randn(self.batch_size, self.nz).to(self.device)
 
         self.optimizerC = optim.RMSprop([self.noise], lr=self.lr)
         self.scheduler = plugins.AutomaticLRScheduler(self.optimizerC, maxlen=500, factor=0.1, patience=self.args.scheduler_patience)
@@ -72,7 +70,7 @@ class Evaluate():
         #     self.pmask[:,:,:,:8] = 0.0
         #     self.pmask[:,:,:,56:] = 0.0
         # self.nmask = torch.add(-self.pmask, 1)
-        self.pmask = torch.ones(self.resolution_high, self.args.resolution_wide)
+        self.pmask = torch.ones(self.resolution_high, self.args.resolution_wide).to(self.device)
         if args.mask_type == 'central':
             self.l = int(self.resolution_high*self.args.scale)
             self.u = int(self.resolution_wide*(1-self.args.scale))
@@ -105,7 +103,7 @@ class Evaluate():
                         A[index, index-self.resolution_wide] = -1
         A = torch.Tensor(A.toarray())
         # self.A = Variable(A)
-        self.Ainv = Variable(torch.inverse(A))
+        self.Ainv = torch.inverse(A).to(self.device)
 
         # Construct Poisson Matrix for Blending
         P = 4*torch.eye(self.num_pixels)
@@ -115,21 +113,11 @@ class Evaluate():
         diag = np.arange(self.resolution_high, self.num_pixels)
         P[diag - self.resolution_high, diag] = -1
         P[diag, diag - self.resolution_high] = -1
-        self.P = Variable(P)
+        self.P = P.to(self.device)
 
-        self.criterion = nn.L1Loss()
+        self.criterion = nn.L1Loss().to(self.device)
         self.ssim_loss = pytorch_ssim.SSIM()
-        if self.args.cuda == True:
-            self.pmask = self.pmask.cuda()
-            self.nmask = self.nmask.cuda()
-            self.non_mask_pixels = self.non_mask_pixels.cuda()
-            self.criterion = self.criterion.cuda()
-            # self.A = self.A.cuda()
-            self.Ainv = self.Ainv.cuda()
-            self.P = self.P.cuda()
 
-        self.pmask = Variable(self.pmask)
-        self.nmask = Variable(self.nmask)
         self.blend = args.blend
 
         self.losses = {}
@@ -207,7 +195,7 @@ class Evaluate():
             range1 = img1.max() - img1.min()
             range2 = img2.max() - img2.min()
             range3 = max(range1, range2)
-            score += psnr(img1, img2, dynamic_range=range3)
+            score += psnr(img1, img2, data_range=range3)
 
         return score/num
 
@@ -231,31 +219,30 @@ class Evaluate():
             self.optimizerC = optim.RMSprop([self.noise], lr=self.lr)
             self.scheduler = plugins.AutomaticLRScheduler(self.optimizerC, maxlen=500, factor=0.1, patience=self.args.scheduler_patience)
 
-            data_real = data_iter.next()[0]
+            input = data_iter.next()[0].to(self.device)
             data_i += 1
             if data_i < self.start_index:
                 continue
 
-            batch_size = data_real.size(0)
-            self.input.data.resize_(data_real.size()).copy_(data_real)
+            batch_size = input.size(0)
 
-            self.input_norm = 2*(torch.mul(0.5*(self.input+1), self.pmask))-1
-            self.input_occluded = torch.mul(self.input, self.pmask)
+            self.input_norm = 2*(torch.mul(0.5*(input+1), self.pmask))-1
+            self.input_occluded = torch.mul(input, self.pmask)
 
             if self.use_encoder:
-                self.epsilon.data.resize_(batch_size, self.nz).normal_(0, 1)
+                self.epsilon.resize_(batch_size, self.nz).normal_(0, 1)
                 noise_mu, noise_logvar = self.netE(self.input_occluded)
                 noise_sigma = torch.exp(torch.mul(noise_logvar, 0.5))
                 latents = noise_mu + torch.mul(noise_sigma, self.epsilon)
                 latents = latents.unsqueeze(-1).unsqueeze(-1)
-                self.noise.data.copy_(latents.data)
+                self.noise.copy_(latents.data)
             else:
                 self.noise.data.normal_(0, 1)
 
             # Save original images first
             for b in range(batch_size):
-                save_image(normalize(self.input.data[b].cpu()), "{}/{}_Original.png".format(self.args.save, data_i*batch_size+b), padding=0, normalize=True)
-                save_image(normalize(self.input_norm.data[b].cpu()), "{}/{}_Occluded.png".format(self.args.save, data_i*batch_size+b), padding=0, normalize=True)
+                save_image(normalize(input[b].cpu()), "{}/{}_Original.png".format(self.args.save, data_i*batch_size+b), padding=0, normalize=True)
+                save_image(normalize(self.input_norm[b].cpu()), "{}/{}_Occluded.png".format(self.args.save, data_i*batch_size+b), padding=0, normalize=True)
 
             for j in range(self.citers):
 
@@ -272,38 +259,38 @@ class Evaluate():
                 else:
                     recon_out = self.poisson_blending(self.input_norm, fake, self.nmask)
                 disc_loss += get_disc_loss(self.netD.forward(recon_out), type=self.disc_type)
-                # ssim_loss = - self.ssim_loss(self.input, fake)
-                # Contextual_Loss = self.criterion(recon_out, self.input)
+                # ssim_loss = - self.ssim_loss(input, fake)
+                # Contextual_Loss = self.criterion(recon_out, input)
                 # loss_vals = Parallel(n_jobs=3)(delayed(process_stage)(i) for i in zip(self.netG, self.netD, self.fake_out, [self.input_occluded]*3, [self.pmask]*3, self.noise, [self.loss]*3, [self.wcom]*3, self.optimizerC, self.scheduler))
 
                 if j % 10 == 0 or j == self.citers-1:
 
                     # disc_loss -= self.netD.forward(recon_out).mean(0).view(1)
-                    # ssims = self.ssim(self.input.data.cpu(), recon_out.data.cpu())
-                    ssims = pytorch_ssim.ssim(self.input, recon_out).data[0]
-                    psnrs = self.psnr(self.input.data.cpu(), recon_out.data.cpu())
-                    # cl = self.loss(self.input, recon_out, self.pmask[0:batch_size]).data
-                    cl = Contextual_Loss.data
-                    dl = disc_loss.data
+                    # ssims = self.ssim(input.data.cpu(), recon_out.data.cpu())
+                    ssims = pytorch_ssim.ssim(input, recon_out).item()
+                    psnrs = self.psnr(input.cpu(), recon_out.detach().cpu())
+                    # cl = self.loss(input, recon_out, self.pmask[0:batch_size]).data
+                    cl = Contextual_Loss.item()
+                    dl = disc_loss.item()
                     # cl = self.c_loss
                     # dl = self.d_loss
                     losses = {}
                     losses['Recon_SSIM'] = ssims
                     losses['Recon_PSNR'] = psnrs
-                    losses['Z_Norm'] = self.noise.data.norm()
+                    losses['Z_Norm'] = self.noise.norm().item()
                     losses['Contextual_Loss'] = cl
                     losses['Perceptual_Loss'] = dl
                     # losses['SSIM_Loss'] = ssim_loss.data[0]
                     losses['LR'] = self.optimizerC.param_groups[0]['lr']
-                    losses['Fake_Image'] = fake_out.data.cpu()
-                    losses['Completed_Image'] = recon_out.data.cpu()
-                    losses['Original_Image'] = self.input.data.cpu()
-                    losses['Occluded_Image'] = self.input_norm.data.cpu()
+                    losses['Fake_Image'] = fake_out.detach().cpu()
+                    losses['Completed_Image'] = recon_out.detach().cpu()
+                    losses['Original_Image'] = input.cpu()
+                    losses['Occluded_Image'] = self.input_norm.cpu()
                     # self.visualizer.update(losses)
 
                     self.losses['Image'] = float(data_i)
-                    self.losses['Input_SSIM'] = self.ssim(self.input.data.cpu(), self.input_norm.data.cpu())
-                    self.losses['Input_PSNR'] = self.psnr(self.input.data.cpu(), self.input_norm.data.cpu())
+                    self.losses['Input_SSIM'] = self.ssim(input.cpu(), self.input_norm.cpu())
+                    self.losses['Input_PSNR'] = self.psnr(input.cpu(), self.input_norm.cpu())
                     self.losses['SSIM'] = ssims
                     self.losses['PSNR'] = psnrs
                     self.losses['C_Loss'] = cl
@@ -317,19 +304,19 @@ class Evaluate():
                 loss = Contextual_Loss + self.wcom*disc_loss
                 loss.backward()
                 self.optimizerC.step()
-                self.scheduler.step(disc_loss.data[0])
+                self.scheduler.step(disc_loss[0].item())
                 self.optimizerC.zero_grad()
 
                 if j % 250 == 0:
                 # Save intermediate results
                     for b in range(batch_size):
-                        save_image(normalize(fake_out.data[b].cpu()), "{}/{}_Fake_Stage_{}.png".format(self.args.save, data_i*batch_size+b, j), padding=0, normalize=True)
-                        save_image(normalize(recon_out.data[b].cpu()), "{}/{}_Reconstructed_Stage_{}.png".format(self.args.save, data_i*batch_size+b, j), padding=0, normalize=True)
+                        save_image(normalize(fake_out[b].detach().cpu()), "{}/{}_Fake_Stage_{}.png".format(self.args.save, data_i*batch_size+b, j), padding=0, normalize=True)
+                        save_image(normalize(recon_out[b].detach().cpu()), "{}/{}_Reconstructed_Stage_{}.png".format(self.args.save, data_i*batch_size+b, j), padding=0, normalize=True)
 
             # self.log_eval_image.update([data_real.clone(), self.input_occluded.data, self.recon_out.clone()])
             for b in range(batch_size):
-                save_image(normalize(fake_out.data[b].cpu()), "{}/{}_Fake_Stage.png".format(self.args.save, data_i*batch_size+b), padding=0, normalize=True)
-                save_image(normalize(recon_out.data[b].cpu()), "{}/{}_Reconstructed_Stage.png".format(self.args.save, data_i*batch_size+b), padding=0, normalize=True)
+                save_image(normalize(fake_out[b].detach().cpu()), "{}/{}_Fake_Stage.png".format(self.args.save, data_i*batch_size+b), padding=0, normalize=True)
+                save_image(normalize(recon_out[b].detach().cpu()), "{}/{}_Reconstructed_Stage.png".format(self.args.save, data_i*batch_size+b), padding=0, normalize=True)
 
     def poisson_blending(self, target, source, mask, offset=(0,0)):
         # compute regions to be blended

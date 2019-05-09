@@ -14,7 +14,6 @@ from skimage.measure import compare_psnr as psnr
 import pyamg
 import PIL.Image
 from torchvision.utils import save_image
-from joblib import Parallel, delayed
 import warnings
 warnings.filterwarnings("ignore")
 

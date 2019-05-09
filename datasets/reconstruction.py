@@ -16,7 +16,7 @@ class RECONSTRUCTION(data.Dataset):
 
         path, dirs, files = os.walk(root).__next__()
         # stages = ['stage1', 'stage2', 'stage3', 'wgan']
-        stages = ['stage1', 'stage2', 'stage3']
+        stages = ['stage0', 'stage1', 'stage2', 'stage3']
         file_count = int(len(files)/(len(stages)+1))                  # 8 for reconstruction
 
         for file_i in range(file_count):

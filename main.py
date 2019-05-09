@@ -1,25 +1,26 @@
 # main.py
 
+import sys, traceback
 import torch
 import random
 import torchvision
 from model import Model
-from config import parser
 from dataloader import Dataloader
 from checkpoints import Checkpoints
-from train import Trainer
+from train_rank_noenc import Trainer
 import utils
 import time
 import datetime
 import copy
 import os
+import config
 
 # parse the arguments
-args = parser.parse_args()
+args = config.parse_args()
 random.seed(args.manual_seed)
 torch.manual_seed(args.manual_seed)
-args.save = os.path.join(args.result_path, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S/'), 'save')
-args.logs = os.path.join(args.result_path, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S/'), 'logs')
+args.save = os.path.join(args.result_path, 'save')
+args.logs = os.path.join(args.result_path, 'logs')
 utils.saveargs(args)
 
 # initialize the checkpoint class
@@ -59,7 +60,13 @@ loader_test = dataloader.create(flag="Test")
 # The trainer handles the training loop and evaluation on validation set
 if args.gogan_type == "no_vae":
     from train_no_vae import Trainer
-elif args.gogan_type:
+elif args.gogan_type == "identity":
+    from train_identity import Trainer
+elif args.gogan_type == "no_identity":
+    from train_no_identity import Trainer
+elif args.gogan_type == "no_identity_enc":
+    from train_no_identity_enc import Trainer
+else:
     from train import Trainer
 trainer = Trainer(args, modelD, modelG, Encoder, criterion, prevD, prevG)
 
@@ -69,14 +76,13 @@ stage_epochs = args.stage_epochs
 for stage in range(args.start_stage, num_stages):
 
     # check whether ready to start new stage and if not, optimize discriminator
-    if stage > 2:
+    if stage > 0:
         print("Optimizing Discriminator")
         trainer.setup_stage(stage, loader_test)
         opt_disc_flag = True
-        # trainer.extra_layer += 1
-        # trainer.extra_layer_gamma = 0
         epoch = 0
-        while opt_disc_flag:
+        # while opt_disc_flag:
+        for epoch in range(0):
             opt_disc_flag = trainer.optimize_discriminator(stage-1, epoch, loader_train)
             epoch += 1
 
@@ -84,22 +90,23 @@ for stage in range(args.start_stage, num_stages):
     trainer.setup_stage(stage, loader_test)
     print("Training for Stage {}".format(stage))
 
-    for epoch in range(stage_epochs):
+    for epoch in range(stage_epochs[stage]):
         # train for a single epoch
         # cur_time = time.time()
         # if stage == 2:
 
         loss_train = trainer.train(stage, epoch, loader_train)
         if stage > 0:
-            disc_acc = trainer.test(stage, epoch, loader_test)
+            # disc_acc = trainer.test(stage, epoch, loader_test)
+            pass
         # print("Time taken = {}".format(time.time() - cur_time))
 
         try:
-            torch.save(modelD.state_dict(), '%s/stage_%d_epoch_%d_netD.pth' % (args.save, stage, 5*int(epoch/5)))
-            torch.save(modelG.state_dict(), '%s/stage_%d_epoch_%d_netG.pth' % (args.save, stage, 5*int(epoch/5)))
+            torch.save(modelD.state_dict(), '%s/stage_%d_netD.pth' % (args.save, stage))
+            torch.save(modelG.state_dict(), '%s/stage_%d_netG.pth' % (args.save, stage))
             torch.save(Encoder.state_dict(), '%s/stage_%d_netE.pth' % (args.save, stage))
         except Exception as e:
             print(e)
 
-        if stage == 1 and disc_acc:
-            break
+        # if stage == 1 and disc_acc:
+        #     break

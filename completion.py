@@ -4,7 +4,6 @@ import torch
 import random
 import torchvision
 from model import Model
-from config import parser
 from dataloader import Dataloader
 from checkpoints import Checkpoints
 from evaluation import Evaluate
@@ -13,13 +12,14 @@ import os
 import datetime
 import utils
 import copy
+import config
 
 # parse the arguments
-args = parser.parse_args()
+args = config.parse_args()
 random.seed(args.manual_seed)
 torch.manual_seed(args.manual_seed)
-args.save = os.path.join(args.result_path, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S/'), 'results')
-args.logs = os.path.join(args.result_path, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S/'), 'logs')
+args.save = os.path.join(args.result_path, 'save')
+args.logs = os.path.join(args.result_path, 'logs')
 utils.saveargs(args)
 
 # initialize the checkpoint class
@@ -47,9 +47,10 @@ dataloader = Dataloader(args)
 test_loader = dataloader.create("Test", shuffle=False)
 
 # The trainer handles the training loop and evaluation on validation set
-evaluate = Evaluate(args, netD, netG, netE)
-# generator = Generator(args, netD, netG, netE)
+# evaluate = Evaluate(args, netD, netG, netE)
+generator = Generator(args, netD, netG, netE)
 
 # test for a single epoch
-test_loss = evaluate.complete(test_loader)
+# test_loss = evaluate.complete(test_loader)
 # loss = generator.generate_one(test_loader)
+loss = generator.interpolate(test_loader)

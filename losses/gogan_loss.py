@@ -4,8 +4,8 @@ import torch
 from torch.autograd import Variable
 import torch.nn as nn
 import numpy as np
-import pytorch_fft.fft.autograd as fft_autograd
-import pytorch_fft.fft as fft
+# import pytorch_fft.fft.autograd as fft_autograd
+# import pytorch_fft.fft as fft
 
 class GoGANLoss(nn.Module):
     def __init__(self, args):
@@ -71,7 +71,7 @@ class GoGANLoss(nn.Module):
 
     def rankerD(self, input):
         batchsize = input[0].size(0)
-        self.real_label.data.resize_(batchsize).fill_(self.real_value)
+        # self.real_label.data.resize_(batchsize).fill_(self.real_value)
         self.fake_label.data.resize_(batchsize).fill_(self.fake_value)
 
         num = len(input)
@@ -84,12 +84,11 @@ class GoGANLoss(nn.Module):
 
     def rankerG(self, input):
         batchsize = input[0].size(0)
-        self.real_label.data.resize_(batchsize).fill_(self.real_value)
+        # self.real_label.data.resize_(batchsize).fill_(self.real_value)
         self.fake_label.data.resize_(batchsize).fill_(self.fake_value)
 
-        num = len(input)
-        if num == 3:
-            loss = self.margin_G_zero(input[0], input[1], self.fake_label)
+        # num = len(input)
+        loss = self.margin_G_zero(input[0], input[1], self.fake_label)
             # loss += self.margin_G(input[1], input[2], self.real_label)
         return loss
 
@@ -176,6 +175,16 @@ class GoGANLoss(nn.Module):
     #     loss = 0.5*loss.mean(0).sum()
 
     #     return loss, corr_re
+
+class RankOrderLoss(nn.Module):
+    """docstring for RankOrderLoss"""
+    def __init__(self, device):
+        super(RankOrderLoss, self).__init__()
+        self.loss = nn.BCEWithLogitsLoss().to(device)
+
+    def __call__(self, outputs, target):
+        loss = self.loss(outputs, target)
+        return loss
 
 
 
